@@ -112,3 +112,17 @@ class IntelRealSenseCameraConfig(CameraConfig):
 
         if self.rotation not in [-90, None, 90, 180]:
             raise ValueError(f"`rotation` must be in [-90, None, 90, 180] (got {self.rotation})")
+
+
+@CameraConfig.register_subclass("ros")
+@dataclass
+class RosCameraConfig(CameraConfig):
+    image_topic: str = "/camera/color/image_raw"
+    width: int = 640
+    height: int = 480
+    fps: int = 30
+    color_mode: str = "rgb"  # or "bgr" if using OpenCV tools
+    channels: int = 3
+    rotation: int | None = None
+    use_depth: bool = False  # Optional, for paired depth topic (not shown below)
+    mock: bool = False

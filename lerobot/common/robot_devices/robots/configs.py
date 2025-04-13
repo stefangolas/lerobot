@@ -26,6 +26,7 @@ from lerobot.common.robot_devices.cameras.configs import (
 from lerobot.common.robot_devices.motors.configs import (
     DynamixelMotorsBusConfig,
     FeetechMotorsBusConfig,
+    RosMotorsBusConfig,
     MotorsBusConfig,
 )
 
@@ -610,4 +611,55 @@ class LeKiwiRobotConfig(RobotConfig):
         }
     )
 
+    mock: bool = False
+
+@RobotConfig.register_subclass("widowx")
+@dataclass
+class IsaacSimWidowXRobotConfig(ManipulatorRobotConfig):
+    """
+    RobotConfig for controlling a WidowX 250 robot simulated in Isaac Sim via ROS.
+    Leverages real Dynamixel motor models for calibration logic.
+    """
+
+    # Where calibration YAML will be loaded from
+    calibration_dir: str = ".cache/calibration/widowx_isaac_sim"
+
+    # Follower arm config: a single arm with 7 controllable joints (6 DOF + gripper)
+    follower_arms: dict[str, MotorsBusConfig] = field(
+        default_factory=lambda: {
+            "arm": RosMotorsBusConfig(
+                # ROS topics used for Isaac Sim → LeRobot communication
+                command_topic="/joint_group_position_controller/command",
+                state_topic="/joint_states",
+
+                # Joint configuration: maps joint name -> [index, Dynamixel model]
+                motors={
+                    "waist": [0, "xm430-w350"],
+                    "shoulder": [1, "xm430-w350"],
+                    "elbow": [2, "xm430-w350"],
+                    "wrist_angle": [3, "xm430-w350"],
+                    "wrist_rotate": [4, "xl430-w250"],
+                    "gripper": [5, "xc430-w150"],
+                    "left_finger": [6, "xc430-w150"],  # mimic of right_finger
+                },
+            )
+        }
+    )
+
+    # Simulated front-facing camera (optional, can be expanded to wrist cams, etc.)
+    cameras: dict[str, CameraConfig] = field(
+        default_factory=lambda: {
+            "cam_front": RosCameraConfig(
+                image_topic="/camera/color/image_raw",
+                fps=30,
+                width=640,
+                height=480,
+            )
+        }
+    )
+
+    # Limits the relative target movement per step (in degrees or %)
+    max_relative_target: int | None = 5  # set to None to disable entirely
+
+    # If True, disables all hardware connections (useful for debugging)
     mock: bool = False
