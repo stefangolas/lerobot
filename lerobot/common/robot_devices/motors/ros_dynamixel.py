@@ -3,14 +3,17 @@ import math
 import traceback
 import logging
 import numpy as np
+import enum
 
-import rospy
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Header
 
 from copy import deepcopy
 from collections.abc import Sequence
-from dynamixel import MODEL_CONTROL_TABLE, MODEL_BAUDRATE_TABLE, MODEL_RESOLUTION
+from .dynamixel import MODEL_CONTROL_TABLE, MODEL_BAUDRATE_TABLE, MODEL_RESOLUTION
+
+import rclpy
+from rclpy.node import Node
 
 
 PROTOCOL_VERSION = 2.0
@@ -25,6 +28,12 @@ LOWER_BOUND_DEGREE = -270.0
 UPPER_BOUND_DEGREE = 270.0
 LOWER_BOUND_LINEAR = -10.0
 UPPER_BOUND_LINEAR = 110.0
+
+class TorqueMode(enum.Enum):
+    ENABLED = 1
+    DISABLED = 0
+
+
 
 class RobotDeviceAlreadyConnectedError(Exception):
     pass
@@ -42,7 +51,7 @@ class CalibrationMode:
     DEGREE = "DEGREE"
     LINEAR = "LINEAR"
 
-class RosMotorsBus:
+class RosDynamixelMotorsBus:
     """
     The RosMotorsBus class mirrors the same structure as DynamixelMotorsBus,
     but uses ROS publishers/subscribers to communicate with a simulated
@@ -65,7 +74,6 @@ class RosMotorsBus:
     """
 
     def __init__(self, config):
-        self.port = config.port  # Typically "ROS" or a dummy
         self.motors = config.motors
         self.mock = config.mock
 
@@ -107,11 +115,22 @@ class RosMotorsBus:
             )
 
         # If a node is not already initialized:
-        if not rospy.core.is_initialized():
-            rospy.init_node("ros_motors_bus", anonymous=True)
+        if not rclpy.ok():
+            rclpy.init()
 
-        self.cmd_pub = rospy.Publisher(self.command_topic, JointState, queue_size=1)
-        self.state_sub = rospy.Subscriber(self.state_topic, JointState, self._on_joint_state)
+        # Create or reuse a node (store it as self.node or pass it externally)
+        self.node = rclpy.create_node("ros_motors_bus")
+
+        # Create publisher
+        self.cmd_pub = self.node.create_publisher(JointState, self.command_topic, 10)
+
+        # Create subscriber
+        self.state_sub = self.node.create_subscription(
+            JointState,
+            self.state_topic,
+            self._on_joint_state,
+            10
+        )
 
         self.is_connected = True
         # In a hardware scenario, you'd do baud rate setup, etc. here.
@@ -142,11 +161,11 @@ class RosMotorsBus:
         """
         if not self.is_connected:
             raise RobotDeviceNotConnectedError(
-                f"RosMotorsBus({self.port}) is not connected. Try running `motors_bus.connect()` first."
+                f"RosDynamixelMotorsBus is not connected. Try running `motors_bus.connect()` first."
             )
 
         if self.state_sub:
-            self.state_sub.unregister()
+            self.state_sub.destroy()
             self.state_sub = None
         self.cmd_pub = None
 
@@ -252,7 +271,8 @@ class RosMotorsBus:
         # Let's build a JointState message that sets each motor to the specified value.
         js = JointState()
         js.header = Header()
-        js.header.stamp = rospy.Time.now()
+        js.header.stamp = self.node.get_clock().now()
+
 
         pub_names = []
         pub_positions = []
@@ -302,7 +322,7 @@ class RosMotorsBus:
         # Build the JointState
         js = JointState()
         js.header = Header()
-        js.header.stamp = rospy.Time.now()
+        js.header.stamp = self.node.get_clock().now().to_msg()
         js.name = motor_names
         js.position = values
 
@@ -320,6 +340,19 @@ class RosMotorsBus:
         """
         self.calibration = calibration
 
+
+    @property
+    def motor_names(self) -> list[str]:
+        return list(self.motors.keys())
+
+    @property
+    def motor_models(self) -> list[str]:
+        return [model for _, model in self.motors.values()]
+
+    @property
+    def motor_indices(self) -> list[int]:
+        return [idx for idx, _ in self.motors.values()]
+
     def apply_calibration_autocorrect(self, values, motor_names):
         """
         Mirrors the approach in Dynamixel code where out-of-range angles
@@ -330,6 +363,9 @@ class RosMotorsBus:
         return values
 
     def apply_calibration(self, values, motor_names):
+        if motor_names is None:
+            motor_names = self.motor_names
+
         """
         Convert from raw sim data to degrees or linear values if needed.
         """

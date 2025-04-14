@@ -188,12 +188,14 @@ available_robots = [
 available_cameras = [
     "opencv",
     "intelrealsense",
+    "ros_camera"
 ]
 
 # lists all available motors from `lerobot/common/robot_devices/motors`
 available_motors = [
     "dynamixel",
     "feetech",
+    "ros_dynamixel",
 ]
 
 # keys and values refer to yaml files

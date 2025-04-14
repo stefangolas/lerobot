@@ -39,3 +39,16 @@ class FeetechMotorsBusConfig(MotorsBusConfig):
     port: str
     motors: dict[str, tuple[int, str]]
     mock: bool = False
+
+@MotorsBusConfig.register_subclass("ros_dynamixel")
+@dataclass
+class RosDynamixelMotorsBusConfig(MotorsBusConfig):
+    command_topic: str
+    state_topic: str
+    motors: dict[str, tuple[int, str]]
+    mock: bool = False
+
+
+
+
+

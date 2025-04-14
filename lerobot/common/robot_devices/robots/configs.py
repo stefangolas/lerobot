@@ -22,11 +22,12 @@ from lerobot.common.robot_devices.cameras.configs import (
     CameraConfig,
     IntelRealSenseCameraConfig,
     OpenCVCameraConfig,
+    RosCameraConfig
 )
 from lerobot.common.robot_devices.motors.configs import (
     DynamixelMotorsBusConfig,
     FeetechMotorsBusConfig,
-    RosMotorsBusConfig,
+    RosDynamixelMotorsBusConfig,
     MotorsBusConfig,
 )
 
@@ -627,7 +628,7 @@ class IsaacSimWidowXRobotConfig(ManipulatorRobotConfig):
     # Follower arm config: a single arm with 7 controllable joints (6 DOF + gripper)
     follower_arms: dict[str, MotorsBusConfig] = field(
         default_factory=lambda: {
-            "arm": RosMotorsBusConfig(
+            "arm": RosDynamixelMotorsBusConfig(
                 # ROS topics used for Isaac Sim → LeRobot communication
                 command_topic="/joint_group_position_controller/command",
                 state_topic="/joint_states",

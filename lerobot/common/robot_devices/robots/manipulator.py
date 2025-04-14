@@ -161,6 +161,8 @@ class ManipulatorRobot:
         self.config = config
         self.robot_type = self.config.type
         self.calibration_dir = Path(self.config.calibration_dir)
+        print("calibration dir")
+        print(self.calibration_dir)
         self.leader_arms = make_motors_buses_from_configs(self.config.leader_arms)
         self.follower_arms = make_motors_buses_from_configs(self.config.follower_arms)
         self.cameras = make_cameras_from_configs(self.config.cameras)
@@ -245,6 +247,9 @@ class ManipulatorRobot:
             from lerobot.common.robot_devices.motors.dynamixel import TorqueMode
         elif self.robot_type in ["so100", "moss", "lekiwi"]:
             from lerobot.common.robot_devices.motors.feetech import TorqueMode
+        elif self.robot_type in ["widowx"]:
+            from lerobot.common.robot_devices.motors.ros_dynamixel import TorqueMode
+
 
         # We assume that at connection time, arms are in a rest position, and torque can
         # be safely disabled to run calibration and/or set robot preset configurations.
@@ -319,6 +324,14 @@ class ManipulatorRobot:
                     )
 
                     calibration = run_arm_manual_calibration(arm, self.robot_type, name, arm_type)
+
+                elif self.robot_type in ["widowx"]:
+                    from lerobot.common.robot_devices.robots.ros_dynamixel_calibration import (
+                        run_arm_calibration,
+                    )
+                    calibration = run_arm_calibration(arm, self.robot_type, name, arm_type)
+
+
 
                 print(f"Calibration is done! Saving calibration file '{arm_calib_path}'")
                 arm_calib_path.parent.mkdir(parents=True, exist_ok=True)
