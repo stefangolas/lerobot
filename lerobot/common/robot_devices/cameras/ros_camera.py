@@ -6,7 +6,8 @@ from cv_bridge import CvBridge
 import threading
 import time
 import cv2
-
+from lerobot.common.utils.utils import capture_timestamp_utc
+from threading import Thread
 
 
 class RosCamera:
@@ -21,6 +22,8 @@ class RosCamera:
         self.use_depth = config.use_depth
         self.channels = 3
         self.fps = config.fps or 30
+        self.thread = None
+        self.stop_event = None
 
 
 
@@ -76,6 +79,13 @@ class RosCamera:
             self.node.get_logger().error(f"Failed to decode ROS image: {e}")
 
     def read(self):
+        start_time = time.perf_counter()
+
+        self.logs["delta_timestamp_s"] = time.perf_counter() - start_time
+
+        # log the utc time at which the image was received
+        self.logs["timestamp_utc"] = capture_timestamp_utc()
+
         if not self.is_connected:
             raise Exception("ROS camera not connected. Call `connect()` first.")
         if self.image is None:
@@ -83,10 +93,21 @@ class RosCamera:
         return self.image
 
     def disconnect(self):
+        
+        
+        if self.thread is not None and self.thread.is_alive():
+            # wait for the thread to finish
+            self.stop_event.set()
+            self.thread.join()
+            self.thread = None
+            self.stop_event = None
+
+
         if self.subscription:
             self.subscription.destroy()
         if self.node:
             self.node.destroy_node()
+        
         self.image = None
         self.is_connected = False
         self.subscription = None
@@ -94,5 +115,41 @@ class RosCamera:
         if rclpy.ok():
             rclpy.shutdown()
 
+
+    def read_loop(self):
+        while not self.stop_event.is_set():
+            try:
+                self.color_image = self.read()
+            except Exception as e:
+                print(f"Error reading in thread: {e}")
+
     def async_read(self):
-        return self.image
+        """
+        Return the most recent image, and log timing information
+        to match expectations from downstream calls like capture_observation.
+        """
+        if not self.is_connected:
+            raise Exception("ROS camera not connected. Call `connect()` first.")
+
+        if self.image is None:
+            raise RuntimeError("No image received yet.")
+
+        if self.thread is None:
+            self.stop_event = threading.Event()
+            self.thread = Thread(target=self.read_loop, args=())
+            self.thread.daemon = True
+            self.thread.start()
+
+        num_tries = 0
+        while self.color_image is None:
+            # TODO(rcadene, aliberts): intelrealsense has diverged compared to opencv over here
+            num_tries += 1
+            time.sleep(1 / self.fps)
+            if num_tries > self.fps and (self.thread.ident is None or not self.thread.is_alive()):
+                raise Exception(
+                    "The thread responsible for `self.async_read()` took too much time to start. There might be an issue. Verify that `self.thread.start()` has been called."
+                )
+
+        return self.color_image
+
+

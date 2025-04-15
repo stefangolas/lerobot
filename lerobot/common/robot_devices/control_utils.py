@@ -117,6 +117,8 @@ def predict_action(observation, policy, device, use_amp):
 
         # Compute the next action with the policy
         # based on the current observation
+        print("Observation")
+        print(observation)
         action = policy.select_action(observation)
 
         # Remove batch dimension
@@ -250,6 +252,8 @@ def control_loop(
             observation, action = robot.teleop_step(record_data=True)
         else:
             observation = robot.capture_observation()
+            print("Observation in control loop")
+            print(observation)
 
             if policy is not None:
                 pred_action = predict_action(
