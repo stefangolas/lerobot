@@ -240,6 +240,29 @@ class PI0Policy(PreTrainedPolicy):
         super().__init__(config)
         config.validate_features()
         self.config = config
+
+        dataset_stats = {
+        "observation.image": {
+            "mean": torch.randn(3, 1, 1),
+            "std": torch.randn(3, 1, 1),
+            "min": torch.randn(3, 1, 1),
+            "max": torch.randn(3, 1, 1),
+        },
+        "observation.state": {
+            "mean": torch.randn(7),
+            "std": torch.randn(7),
+            "min": torch.randn(7),
+            "max": torch.randn(7),
+        },
+        "action": {
+            "mean": torch.randn(5),
+            "std": torch.randn(5),
+            "min": torch.randn(5),
+            "max": torch.randn(5),
+        },
+    }
+
+
         self.normalize_inputs = Normalize(config.input_features, config.normalization_mapping, dataset_stats)
         self.normalize_targets = Normalize(
             config.output_features, config.normalization_mapping, dataset_stats
