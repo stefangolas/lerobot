@@ -109,7 +109,7 @@ def predict_action(observation, policy, device, use_amp):
     ):
         # Convert to pytorch format: channel first and float32 in [0,1] with batch dimension
         for name in observation:
-            if "image" in name:
+            if "image" in name and isinstance(observation[name], torch.Tensor):
                 observation[name] = observation[name].type(torch.float32) / 255
                 observation[name] = observation[name].permute(2, 0, 1).contiguous()
             observation[name] = observation[name].unsqueeze(0)
@@ -250,7 +250,7 @@ def control_loop(
             observation, action = robot.teleop_step(record_data=True)
         else:
             observation = robot.capture_observation()
-
+            observation.update({"task":[single_task]})
             if policy is not None:
                 pred_action = predict_action(
                     observation, policy, get_safe_torch_device(policy.config.device), policy.config.use_amp
